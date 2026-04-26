@@ -28,9 +28,9 @@ def add_documents(chunks: list[str]):
     # Add to document store
     document_store.extend(chunks)
 
-def search(query: str, k: int = 1):
+def search(query: str, k: int = 3):
     if index.ntotal == 0:
-        return "No documents uploaded yet.", 0.0
+        return [], 0.0
 
     # Encode and normalize query
     query_embedding = model.encode([query])
@@ -38,10 +38,11 @@ def search(query: str, k: int = 1):
     
     distances, indices = index.search(np.array(query_embedding), k=k)
     
-    # Return best match and score
-    best_idx = indices[0][0]
-    if best_idx == -1 or best_idx >= len(document_store):
-        return "No relevant answer found.", 0.0
-        
-    score = float(distances[0][0])
-    return document_store[best_idx], score
+    results = []
+    for idx in indices[0]:
+        if idx != -1 and idx < len(document_store):
+            results.append(document_store[idx])
+            
+    # Return best matches and the top score
+    score = float(distances[0][0]) if len(distances[0]) > 0 else 0.0
+    return results, score

@@ -40,7 +40,7 @@ if st.button("Submit"):
                 if response.status_code == 200:
                     data = response.json()
                     st.write("### Answer:")
-                    st.info(data["answer"])
+                    st.markdown(data["answer"])
                     st.write(f"**Confidence Score:** {data['score']:.4f}")
                 else:
                     st.error("Error retrieving response from backend")
