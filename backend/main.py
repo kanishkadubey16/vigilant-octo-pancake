@@ -1,5 +1,6 @@
 # Backend for AI Copilot RAG System
 import os
+from typing import List, Optional
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 from backend.faiss_engine import search, add_documents
@@ -19,9 +20,15 @@ else:
 
 app = FastAPI()
 
+# Chat message schema
+class ChatMessage(BaseModel):
+    role: str # "user" or "assistant"
+    content: str
+
 # Request schema
 class QueryRequest(BaseModel):
     query: str
+    history: List[ChatMessage] = []
 
 # Query endpoint
 @app.post("/query")
@@ -33,7 +40,8 @@ def query_docs(request: QueryRequest):
         return {
             "query": query,
             "answer": "Please enter a valid query.",
-            "score": 0.0
+            "score": 0.0,
+            "sources": []
         }
 
     # Use FAISS search to get the most relevant chunks
@@ -43,15 +51,24 @@ def query_docs(request: QueryRequest):
         return {
             "query": query,
             "answer": "No documents uploaded yet or no relevant matches found.",
-            "score": score
+            "score": score,
+            "sources": []
         }
 
     context_text = "\n\n".join(matched_chunks)
+    
+    # Format history for prompt
+    history_str = ""
+    for msg in request.history[-5:]: # Last 5 messages for context
+        history_str += f"{msg.role.capitalize()}: {msg.content}\n"
 
     # Synthesize answer using LLM
     if llm_model:
         prompt = f"""
-You are a concise AI Copilot. Your task is to provide a highly structured, short, and professional answer (maximum 5-6 lines).
+You are a professional and concise AI Copilot. Your goal is to provide a highly structured, conversational, and accurate answer based on the context and history.
+
+### Conversation History:
+{history_str}
 
 ### Context from Documents:
 {context_text}
@@ -60,10 +77,11 @@ You are a concise AI Copilot. Your task is to provide a highly structured, short
 {query}
 
 ### Instructions:
-1. **Direct Definition:** Start with a one-sentence clear definition.
-2. **Concise Explanation:** Provide a brief explanation based on the context.
-3. **Example/Formula:** Include exactly one simple example or one clearly formatted formula if present.
-4. **Constraints:** Total response MUST be under 6 lines. Do NOT copy the context verbatim. Use bold for key terms.
+1. **Direct Answer:** Provide a clear, direct answer to the query.
+2. **Contextual Awareness:** Use the conversation history if it helps clarify the user's intent.
+3. **Conciseness:** Keep the response short and structured (max 6-8 lines).
+4. **Formatting:** Use markdown (bold, lists) for readability. Include one key formula or example if relevant.
+5. **Constraints:** Do not copy context verbatim. If the answer isn't in the context, say so.
 
 ### Answer:
 """
@@ -78,7 +96,8 @@ You are a concise AI Copilot. Your task is to provide a highly structured, short
     return {
         "query": query,
         "answer": final_answer,
-        "score": score
+        "score": score,
+        "sources": matched_chunks
     }
 
 # Upload endpoint for RAG
@@ -107,4 +126,4 @@ def upload_file(file: UploadFile = File(...)):
 # Health check
 @app.get("/")
 def home():
-    return {"message": "Backend running 🚀 (RAG mode + LLM Synthesis)"}
+    return {"message": "Backend running 🚀 (Advanced RAG mode)"}
